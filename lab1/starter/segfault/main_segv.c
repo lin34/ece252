@@ -24,10 +24,13 @@ int main(void)
     struct point pt={1,2};
  
     p = (struct buf *)malloc(sizeof(struct buf));
-    q = p;
+    q = (struct buf *)malloc(sizeof(struct buf));
 
     p->data = (char *)&pt ;
     p->size = sizeof(struct point); 
+
+    q->data = (char *)&pt ;
+    q->size = sizeof(struct point); 
 
     printf("p->x = %d, p->y =%d\n", ((struct point*)(p->data))->x, ((struct point *)(p->data))->y);
 
