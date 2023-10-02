@@ -11,6 +11,7 @@
  * INCLUDE HEADER FILES
  *****************************************************************************/
 #include <stdio.h>
+#include <stdbool.h>
 
 /******************************************************************************
  * DEFINED MACROS 
@@ -61,9 +62,34 @@ typedef struct simple_PNG {
 /******************************************************************************
  * FUNCTION PROTOTYPES 
  *****************************************************************************/
-int is_png(U8 *buf, size_t n);
+/*int is_png(U8 *buf, size_t n); Takes 8 bytes and checks whether it matches the PNG image file signature*/
 int get_png_height(struct data_IHDR *buf);
 int get_png_width(struct data_IHDR *buf);
 int get_png_data_IHDR(struct data_IHDR *out, FILE *fp, long offset, int whence);
 
 /* declare your own functions prototypes here */
+
+int is_png(char *filePath) {
+    FILE *fp = fopen(filePath, "rb");
+    if (fp == NULL){
+        perror("fopen");
+        return errno;
+    }
+    U8 *buf = malloc(8);
+    fread(buf, sizeof(buf), 1, fp);
+    if (
+        buf[0] == 0x89 &&
+        buf[1] == 0x50 &&
+        buf[2] == 0x4e &&
+        buf[3] == 0x47 &&
+        buf[5] == 0x0d &&
+        buf[6] == 0x1a &&
+        buf[7] == 0x0a
+    )
+    {
+        free(buf);
+        return true;
+    }
+    free(buf);
+    return false;
+}
