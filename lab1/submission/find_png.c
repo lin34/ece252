@@ -59,11 +59,10 @@ int listPngInDir(const char *dir)
             strcpy(path, dir);
             strcat(path, "/");
             strcat(path, str_path);
-            printf("%s\n", path);
             int statNum = lstat(path, &buf);
             if      (statNum == 0 && S_ISREG(buf.st_mode))
             {
-                if(is_png(path)){
+                if(is_png(path) == 1){
                     count++;
                     printf("%s\n", path);
                 }
@@ -83,5 +82,5 @@ int listPngInDir(const char *dir)
         exit(3);
     }
 
-    return 0;
+    return count;
 }

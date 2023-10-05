@@ -83,14 +83,101 @@ int is_png(char *filePath) {
         buf[1] == 0x50 &&
         buf[2] == 0x4e &&
         buf[3] == 0x47 &&
-        buf[5] == 0x0d &&
+        buf[4] == 0x0d &&
+        buf[5] == 0x0a &&
         buf[6] == 0x1a &&
         buf[7] == 0x0a
-    )
-    {
+    ) {
         free(buf);
-        return true;
+        return 1;
     }
     free(buf);
-    return false;
+    return 0;
+}
+
+int get_chunk(struct chunk *out, FILE *fp, long offset){
+    U8 *buf = malloc(CHUNK_LEN_SIZE);
+    fseek(fp, offset, SEEK_SET);
+    fread(buf, sizeof(buf), 1, fp);
+    //convert length from big endian to little endian
+    int num = *buf;
+    int len = ntohl(num);
+    out->length = len;
+
+    fseek(fp, offset + CHUNK_LEN_SIZE, SEEK_SET);
+    fread(buf, sizeof(buf), 1, fp);
+    for (int i = 0; i < sizeof(buf); i++)
+    {
+        out->type[i] = buf[i];
+    }
+
+    U8 *stream = malloc(len);
+    fseek(fp, offset + CHUNK_LEN_SIZE + CHUNK_TYPE_SIZE, SEEK_SET);
+    fread(stream, sizeof(stream), 1, fp);
+    out->p_data = stream;
+
+    fseek(fp, offset + 8 + len, SEEK_SET);
+    fread(buf, sizeof(buf), 1, fp);
+    num = *buf;
+    int crc = ntohl(num);
+    out->crc = crc;
+
+    free(buf);
+    return 1;
+}
+
+int get_chunks(struct simple_PNG *out, FILE *fp)
+{
+     get_chunk(out->p_IHDR, fp, 8);
+     get_chunk(out->p_IDAT, fp, out->p_IHDR->length + 20);
+     get_chunk(out->p_IEND, fp, out->p_IHDR->length + out->p_IDAT->length + 32);
+    return 1;
+}
+
+int get_IHDR_data(struct chunk ihdr, struct data_IHDR *out)
+{
+    int w, h;
+    u_int32_t *buf = malloc(4);
+    for(int i = 0; i < 4; i++)
+    {
+        buf[i] = ihdr.p_data[i];
+    }
+    w = ntohl(*buf);
+    out->width = w;
+    for(int i = 0; i < 4; i++)
+    {
+        int j = i + 4;
+        buf[i] = ihdr.p_data[j];
+    }
+    h = ntohl(*buf);
+    out->height = h;
+    out->bit_depth = ihdr.p_data[8];
+    out->color_type = ihdr.p_data[9];
+    out->compression = ihdr.p_data[10];
+    out->filter = ihdr.p_data[11];
+    out->interlace = ihdr.p_data[12];
+    return 1;
+}
+
+int validate_CRC(struct chunk *chunk)
+{
+    U8 *stream = malloc(CHUNK_TYPE_SIZE + chunk->length);
+    for (int i = 0; i < CHUNK_TYPE_SIZE; i++)
+    {
+        stream[i] = chunk->type[i];
+    }
+    for (int j = 0; j < chunk->length; j++)
+    {
+        int i = j + CHUNK_TYPE_SIZE;
+        stream[i] = chunk->p_data[i];
+    }
+    unsigned long x = crc(stream, CHUNK_TYPE_SIZE + chunk->length);
+    if(x != chunk->crc)
+    {
+        printf("%.4s chunk CRC error: computed %04lx, expected %04x\n", chunk->type, x, chunk->crc);
+        free(stream);
+        return 0;
+    }
+    free(stream);
+    return 1;
 }
