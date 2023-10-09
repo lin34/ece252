@@ -18,38 +18,32 @@
 #include <errno.h>
 int main(int argc, char **argv)
 {
-        //Read all the input arguments
-        if (argc == 1)
-    {
-        fprintf(stderr, "Usage: %s <directory name>\n", argv[0]);
-        exit(1);
-    }
-
     //Step 1: obtain the full length of the data section
-
-    struct chunk chunk;
     int length = 0; //length of image in pixels
-    int width = 0;
+    U8 *width = malloc(4);
     int height = 0;
     
     for(int i = 1; i < argc; i++)
     {
         char* str_file = argv[i];
         FILE *fp = fopen(str_file, "rb");
-
+        //printf("Step2\n");
         struct simple_PNG png;
+        struct simple_PNG *ptr_png = &png;
         struct chunk ihdr;
         struct chunk idat;
         struct chunk iend;
-        png.p_IHDR = &ihdr;
-        png.p_IDAT = &idat;
-        png.p_IEND = &iend;
-        get_chunks(&png, fp);
+        ptr_png->p_IHDR = &ihdr;
+        ptr_png->p_IDAT = &idat;
+        ptr_png->p_IEND = &iend;
+        printf("Make chunks\n");
+        get_chunks(ptr_png, fp);
         struct data_IHDR ihdr_data;
-        get_IHDR_data(ihdr, &ihdr_data);
-        width = ihdr_data.width;
-        height += ntohl(ihdr_data.height);
-        length += ntohl(png.p_IDAT->length);
+        get_IHDR_data(ihdr.p_data, &ihdr_data);
+        width = png.p_IHDR->p_data;
+        height += ihdr_data.height;
+        printf("Chunk %d: %s is height %d", i, str_file, height);
+        length += ptr_png->p_IDAT->length;
     }
 
     //Step 2: allocate the full length array and get pixel data
@@ -66,13 +60,13 @@ int main(int argc, char **argv)
         png.p_IDAT = &idat;
         png.p_IEND = &iend;
         get_chunks(&png, fp);
-        U64 len_inf;
+        U64 len_inf = 0;
         U8 inflated[png.p_IDAT->length * 512]; //dunno why x 512
-        mem_inf(inflated, len_inf ,png.p_IDAT->p_data, png.p_IDAT->length);
+        mem_inf(inflated, &len_inf , png.p_IDAT->p_data, png.p_IDAT->length);
         memcpy(all + all_len, inflated, len_inf);
         all_len += len_inf;
     }
-    U8 len_def;
+    U64 len_def;
     U8 *deflated = malloc(length);
     mem_def(deflated, &len_def, all, all_len, Z_DEFAULT_COMPRESSION);
 
@@ -88,7 +82,7 @@ int main(int argc, char **argv)
     ihdr_head[3] = 0x52; //R
 
     U8 *ihdr_info = malloc(4);
-    ihdr_info[0] = 0x08;
+    ihdr_info[0] = 0x08; //Bit depth
     ihdr_info[1] = 0x06;
     ihdr_info[2] = 0x0;
     ihdr_info[3] = 0x0;
@@ -106,7 +100,7 @@ int main(int argc, char **argv)
     memcpy(buf + 8, ihdr_height, 4);
     memcpy(buf + 12, ihdr_info, 5);
 
-        U32 c = crc(buf, 17);
+    U32 c = crc(buf, 17);
     U32 *c_crc = ntohl(c);
 
     fwrite(&sig, 8, 1, fa);
@@ -141,6 +135,4 @@ int main(int argc, char **argv)
 
     return 1;
 
-
-        return 0;
 }

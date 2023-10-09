@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 /******************************************************************************
  * DEFINED MACROS 
@@ -100,9 +101,12 @@ int get_chunk(struct chunk *out, FILE *fp, long offset){
     fseek(fp, offset, SEEK_SET);
     fread(buf, sizeof(buf), 1, fp);
     //convert length from big endian to little endian
-    int num = *buf;
-    int len = ntohl(num);
+    int len = 0;
+    for (int i = 0; i < 4; i++) {
+        len = len * 256 + buf[i];
+    }
     out->length = len;
+    //printf("Length of chunk %d", len);
 
     fseek(fp, offset + CHUNK_LEN_SIZE, SEEK_SET);
     fread(buf, sizeof(buf), 1, fp);
@@ -110,16 +114,19 @@ int get_chunk(struct chunk *out, FILE *fp, long offset){
     {
         out->type[i] = buf[i];
     }
+    printf("Out type: %s Length: %d \n", out->type, len);
 
     U8 *stream = malloc(len);
     fseek(fp, offset + CHUNK_LEN_SIZE + CHUNK_TYPE_SIZE, SEEK_SET);
-    fread(stream, sizeof(stream), 1, fp);
+    fread(stream, len, 1, fp);
     out->p_data = stream;
 
     fseek(fp, offset + 8 + len, SEEK_SET);
     fread(buf, sizeof(buf), 1, fp);
-    num = *buf;
-    int crc = ntohl(num);
+    int crc;
+    for (int i = 0; i < 4; i++) {
+        crc = crc * 256 + buf[i];
+    }
     out->crc = crc;
 
     free(buf);
@@ -128,34 +135,34 @@ int get_chunk(struct chunk *out, FILE *fp, long offset){
 
 int get_chunks(struct simple_PNG *out, FILE *fp)
 {
-     get_chunk(out->p_IHDR, fp, 8);
-     get_chunk(out->p_IDAT, fp, out->p_IHDR->length + 20);
-     get_chunk(out->p_IEND, fp, out->p_IHDR->length + out->p_IDAT->length + 32);
+    printf("chunk 1");
+    get_chunk(out->p_IHDR, fp, 8);
+    printf("chunk 2");
+    get_chunk(out->p_IDAT, fp, out->p_IHDR->length + 20);
+    get_chunk(out->p_IEND, fp, out->p_IHDR->length + out->p_IDAT->length + 32);
     return 1;
 }
 
-int get_IHDR_data(struct chunk ihdr, struct data_IHDR *out)
+int get_IHDR_data(U8 *ihdr_data, struct data_IHDR *out)
 {
     int w, h;
     u_int32_t *buf = malloc(4);
     for(int i = 0; i < 4; i++)
     {
-        buf[i] = ihdr.p_data[i];
+        w = w * 256 + ihdr_data[i];
     }
-    w = ntohl(*buf);
+
+    for (int i = 4; i < 8; i++) {
+        h = h * 256 + ihdr_data[i];
+    }
+
     out->width = w;
-    for(int i = 0; i < 4; i++)
-    {
-        int j = i + 4;
-        buf[i] = ihdr.p_data[j];
-    }
-    h = ntohl(*buf);
     out->height = h;
-    out->bit_depth = ihdr.p_data[8];
-    out->color_type = ihdr.p_data[9];
-    out->compression = ihdr.p_data[10];
-    out->filter = ihdr.p_data[11];
-    out->interlace = ihdr.p_data[12];
+    out->bit_depth = ihdr_data[8];
+    out->color_type = ihdr_data[9];
+    out->compression = ihdr_data[10];
+    out->filter = ihdr_data[11];
+    out->interlace = ihdr_data[12];
     return 1;
 }
 
