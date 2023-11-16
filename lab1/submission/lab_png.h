@@ -135,9 +135,7 @@ int get_chunk(struct chunk *out, FILE *fp, long offset){
 
 int get_chunks(struct simple_PNG *out, FILE *fp)
 {
-    printf("chunk 1");
     get_chunk(out->p_IHDR, fp, 8);
-    printf("chunk 2");
     get_chunk(out->p_IDAT, fp, out->p_IHDR->length + 20);
     get_chunk(out->p_IEND, fp, out->p_IHDR->length + out->p_IDAT->length + 32);
     return 1;
